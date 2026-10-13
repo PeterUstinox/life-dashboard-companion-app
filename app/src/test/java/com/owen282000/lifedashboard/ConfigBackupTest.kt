@@ -56,7 +56,8 @@ class ConfigBackupTest {
             receiveEnabled = true,
             receiveTypes = listOf("weight", "blood_pressure"),
             receiveOlderMeasurements = true,
-            receiveSourceUrl = "https://example.com/health"
+            receiveSourceUrl = "https://example.com/health",
+            theme = "dark"
         )
     )
 
@@ -78,7 +79,8 @@ class ConfigBackupTest {
         listOf(
             "webhook_urls", "signing_secret", "sync_interval_minutes",
             "screen_time", "use_tls", "enabled_data_types", "include_daily_totals",
-            "allow_http_webhooks", "health_base_topic", "phone_name", "receive_types", "receive_source_url"
+            "allow_http_webhooks", "health_base_topic", "phone_name", "receive_types", "receive_source_url",
+            "theme"
         ).forEach {
             assertTrue("expected key \"$it\" in export", json.contains("\"$it\""))
         }
@@ -234,6 +236,15 @@ class ConfigBackupTest {
         assertNull(restored.options.receiveTypes)
         assertNull(restored.options.receiveOlderMeasurements)
         assertNull(restored.options.receiveSourceUrl)
+        assertNull("the phone keeps its own theme", restored.options.themeOnImport())
+    }
+
+    @Test
+    fun theThemeComesBackAndAnUnknownOneIsLeftAlone() {
+        assertEquals(ThemeMode.DARK, ConfigBackup.decode(fullBackup().encode()).options.themeOnImport())
+        ThemeMode.entries.forEach { assertEquals(it, OptionsConfig(theme = it.key).themeOnImport()) }
+        // A newer build's choice this one does not have keeps the phone's, rather than resetting it.
+        assertNull(OptionsConfig(theme = "sepia").themeOnImport())
     }
 
     @Test
@@ -495,5 +506,65 @@ class ConfigBackupTest {
         assertEquals(OptionsConfig(), empty.options)
         assertEquals(deviceHealth, empty.mqtt.sectionOnImport(MqttSection.HEALTH, deviceHealth, false))
         assertEquals(deviceScreenTime, empty.mqtt.sectionOnImport(MqttSection.SCREEN_TIME, deviceScreenTime, false))
+    }
+
+    @Test
+    fun aHeaderThatCannotBeSentIsLeftOutOnImportAndThePreviewSaysSo() {
+        val file = fullBackup().copy(
+            health = fullBackup().health.copy(headers = mapOf("X-Api-Key" to "abc", "Bad Header" to "x")),
+            screenTime = fullBackup().screenTime.copy(headers = mapOf("Authorization" to "Bearer a\nb"))
+        )
+        assertTrue(ImportNote.UNSENDABLE_HEADERS_SKIPPED in file.importNotes())
+
+        val applied = file.forThisPhone()
+        assertEquals(mapOf("X-Api-Key" to "abc"), applied.health.headers)
+        // None left: like a file without headers, which keeps the ones on the device.
+        assertTrue(applied.screenTime.headers.isEmpty())
+        assertEquals(file.health.webhookUrls, applied.health.webhookUrls)
+    }
+
+    @Test
+    fun sendableHeadersAreTakenOverAsTheyAre() {
+        val file = fullBackup()
+        assertFalse(ImportNote.UNSENDABLE_HEADERS_SKIPPED in file.importNotes())
+        assertEquals(file.health.headers, file.forThisPhone().health.headers)
+    }
+
+    @Test
+    fun aBrokerTheSettingsWouldRefuseIsLeftOutAndThePreviewSaysWhy() {
+        val full = fullBackup()
+        val file = full.copy(
+            mqtt = full.mqtt.copy(
+                shared = BrokerConfig("mqtt://broker.local", 1883, false, "user", "pass"),
+                screenTimeOwnBroker = BrokerConfig("other.local", 0, false, "u2", "p2")
+            )
+        )
+        val notes = file.importNotes()
+        assertTrue(ImportNote.BROKER_HOST_UNUSABLE in notes)
+        assertTrue(ImportNote.BROKER_PORT_UNUSABLE in notes)
+
+        val applied = file.forThisPhone()
+        // Absent, so the phone keeps the brokers it has, credentials and all.
+        assertNull(applied.mqtt.shared)
+        assertNull(applied.mqtt.screenTimeOwnBroker)
+        // The rest of the file still applies: its usable broker, switches, topics and webhooks.
+        assertEquals(full.mqtt.healthOwnBroker, applied.mqtt.healthOwnBroker)
+        assertEquals(full.mqtt.healthEnabled, applied.mqtt.healthEnabled)
+        assertEquals(full.health.webhookUrls, applied.health.webhookUrls)
+        assertEquals(full.summarise(emptySet()).brokers - 2, file.summarise(emptySet()).brokers)
+    }
+
+    @Test
+    fun usableBrokersAreTakenOverAsTheyAre() {
+        val file = fullBackup().copy(
+            mqtt = MqttConfig(
+                shared = BrokerConfig("[fd00::1]", 65535, false, null, null),
+                healthOwnBroker = BrokerConfig("core_mosquitto", 1, false, null, null),
+                screenTimeOwnBroker = BrokerConfig("", 1883, false, null, null)
+            )
+        )
+        assertFalse(ImportNote.BROKER_HOST_UNUSABLE in file.importNotes())
+        assertFalse(ImportNote.BROKER_PORT_UNUSABLE in file.importNotes())
+        assertEquals(file.mqtt, file.forThisPhone().mqtt)
     }
 }

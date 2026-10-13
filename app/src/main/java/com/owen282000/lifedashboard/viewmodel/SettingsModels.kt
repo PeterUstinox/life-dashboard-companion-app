@@ -2,13 +2,16 @@ package com.owen282000.lifedashboard.viewmodel
 
 import com.owen282000.lifedashboard.BackfillFailure
 import com.owen282000.lifedashboard.HealthDataType
+import com.owen282000.lifedashboard.InvalidHeaderException
 import com.owen282000.lifedashboard.MqttBroker
 import com.owen282000.lifedashboard.MqttSectionSettings
+import com.owen282000.lifedashboard.MqttSupport
 import com.owen282000.lifedashboard.QuietWindow
 import com.owen282000.lifedashboard.ScreenTimeAppFilter
 import com.owen282000.lifedashboard.SeriesResolution
 import com.owen282000.lifedashboard.SyncMode
 import com.owen282000.lifedashboard.SyncSchedule
+import com.owen282000.lifedashboard.WebhookSupport
 import com.owen282000.lifedashboard.WriteBackType
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.time.DayOfWeek
@@ -48,9 +51,12 @@ data class MqttDraft(
 ) {
     val activeBroker: MqttBroker get() = if (section.useSharedBroker) sharedBroker else section.ownBroker
 
-    /** Port lives in its own text field; fold it into whichever broker is active before comparing or saving. */
+    /**
+     * Port lives in its own text field; fold it into whichever broker is active before comparing
+     * or saving. Text that is no port (empty, 0, above 65535) keeps the port the broker had.
+     */
     fun withPort(): MqttDraft {
-        val port = portText.toIntOrNull()
+        val port = MqttSupport.portOrNull(portText)
         return if (section.useSharedBroker) {
             copy(sharedBroker = sharedBroker.copy(port = port ?: sharedBroker.port))
         } else {
@@ -193,6 +199,47 @@ object SettingsRules {
     fun isValidUrl(url: String): Boolean = url.trim().toHttpUrlOrNull() != null
 
     /**
+     * What is wrong with a header about to be added, or null when it can be: a name that is an
+     * HTTP token and a value OkHttp sends, both after trimming, as the tabs save them. A name
+     * with a space used to be saved, after which every delivery failed (see WebhookSupport).
+     */
+    fun headerProblem(name: String, value: String): UiMessage? = when {
+        name.isBlank() || value.isBlank() -> UiMessage.HeaderNeedsNameAndValue
+        !WebhookSupport.isValidHeaderName(name.trim()) -> UiMessage.InvalidHeaderName
+        !WebhookSupport.isValidHeaderValue(value.trim()) -> UiMessage.InvalidHeaderValue
+        else -> null
+    }
+
+    /**
+     * What is wrong with the broker host of [mqtt], as the field shows it. A host is needed once
+     * publishing is on; one that is typed is checked even while it is off, as the shared broker
+     * may be in use by the other tab, but only [mqttProblem] decides whether a save goes ahead.
+     */
+    fun mqttHostProblem(mqtt: MqttDraft): UiMessage? = brokerHostProblem(mqtt.activeBroker.host, required = mqtt.section.enabled)
+
+    /** What is wrong with the port of [mqtt]: checked whenever the host is, see [mqttHostProblem]. */
+    fun mqttPortProblem(mqtt: MqttDraft): UiMessage? =
+        if (mqtt.section.enabled || mqtt.activeBroker.host.isNotBlank()) brokerPortProblem(mqtt.portText) else null
+
+    /**
+     * The first problem of [mqtt] that stops a save, host before port. Only while this section
+     * publishes: with MQTT off nothing connects, so a host or port that cannot work keeps its
+     * error under the field but does not hold back the rest of the tab, Sync Now included.
+     */
+    fun mqttProblem(mqtt: MqttDraft): UiMessage? =
+        if (mqtt.section.enabled) mqttHostProblem(mqtt) ?: mqttPortProblem(mqtt) else null
+
+    /** A broker host as the settings and the setup wizard check it; blank only counts when [required]. */
+    fun brokerHostProblem(host: String, required: Boolean): UiMessage? = when {
+        host.isBlank() -> if (required) UiMessage.MqttHostMissing else null
+        !MqttSupport.isValidHost(host) -> UiMessage.MqttHostInvalid
+        else -> null
+    }
+
+    fun brokerPortProblem(portText: String): UiMessage? =
+        if (MqttSupport.portOrNull(portText) == null) UiMessage.MqttPortInvalid else null
+
+    /**
      * What is wrong with a schedule, or null when it can be saved. The interval floor only
      * applies in interval mode: a schedule that runs at 08:00 and 08:05 is the user's call,
      * not WorkManager's, because fixed times run as one-time work.
@@ -221,6 +268,14 @@ sealed interface UiMessage {
     data object InvalidDayBoundaryHour : UiMessage
     data object InvalidUrl : UiMessage
     data object HeaderNeedsNameAndValue : UiMessage
+    data object InvalidHeaderName : UiMessage
+    data object InvalidHeaderValue : UiMessage
+
+    /** A saved header that cannot be sent kept a delivery from going out; [inValue] when its value is the problem. */
+    data class HeaderBlocksDelivery(val name: String, val inValue: Boolean) : UiMessage
+    data object MqttHostMissing : UiMessage
+    data object MqttHostInvalid : UiMessage
+    data object MqttPortInvalid : UiMessage
     data object NoNewData : UiMessage
     data class SyncedRecords(val count: Int) : UiMessage
     data class QueuedRecords(val count: Int) : UiMessage
@@ -255,6 +310,10 @@ sealed interface UiMessage {
         /** [message] as it stands, or wrapped when some of [total] webhooks missed the payload. */
         fun partly(message: UiMessage, missed: Int, total: Int): UiMessage =
             if (missed > 0 && total > missed) PartlyDelivered(message, total - missed, total) else message
+
+        /** [error] as the header it names when a header kept the request from being built, else null. */
+        fun headerProblem(error: Throwable?): UiMessage? =
+            (error as? InvalidHeaderException)?.problem?.let { HeaderBlocksDelivery(it.shownName, it.inValue) }
     }
     data class OtherSourceWrites(val source: String, val type: WriteBackType) : UiMessage
 
@@ -262,5 +321,5 @@ sealed interface UiMessage {
     val isFailure: Boolean
         get() = this is SyncFailed || this is HealthConnectUnavailable || this is UsageAccessMissing ||
             this is PingFailed || this is PingFailedWith || this is PreviewFailed || this is ExportFailed ||
-            this is PartlyDelivered || this is BackfillFailed
+            this is PartlyDelivered || this is BackfillFailed || this is HeaderBlocksDelivery
 }

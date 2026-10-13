@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** What the Logs tab and the data preview show of a payload (P2-11). */
+/** What the Logs tab and the data preview show of a payload (P2-11), and what Copy JSON takes (S-01). */
 class PayloadPreviewTest {
 
     private val max = PayloadPreview.MAX_CHARS
@@ -62,9 +62,44 @@ class PayloadPreviewTest {
     }
 
     @Test
+    fun aPayloadUpToTheCopyLimitFitsTheClipboard() {
+        assertTrue(PayloadPreview.fitsClipboard(""))
+        assertTrue(PayloadPreview.fitsClipboard("a".repeat(PayloadPreview.MAX_COPY_CHARS)))
+    }
+
+    @Test
+    fun aPayloadOverTheCopyLimitGoesToShare() {
+        assertFalse(PayloadPreview.fitsClipboard("a".repeat(PayloadPreview.MAX_COPY_CHARS + 1)))
+        assertFalse(PayloadPreview.fitsClipboard("a".repeat(300_000)))
+    }
+
+    @Test
+    fun theCopyLimitCountsUtf16UnitsLikeTheBinder() {
+        // An emoji is two chars in a Parcel as in a String, so half the limit in emoji fits
+        // and one more does not.
+        val half = "👍".repeat(PayloadPreview.MAX_COPY_CHARS / 2)
+        assertTrue(PayloadPreview.fitsClipboard(half))
+        assertFalse(PayloadPreview.fitsClipboard(half + "👍"))
+    }
+
+    @Test
+    fun theCopyLimitStaysWellUnderTheBinderBuffer() {
+        // Two bytes a char in the Parcel; the buffer is 1 MB for the whole process.
+        assertTrue(PayloadPreview.MAX_COPY_CHARS * 2 <= 256 * 1024)
+        // Whatever the preview shows can always be copied.
+        assertTrue(PayloadPreview.MAX_COPY_CHARS >= max)
+    }
+
+    @Test
     fun prettyPrintsJsonAndLeavesTheRestAlone() {
         assertEquals("{\n    \"a\": 1\n}", PayloadPreview.pretty("""{"a":1}"""))
         val cut = """{"a":""" + WebhookLogStore.TRUNCATION_MARKER
         assertEquals(cut, PayloadPreview.pretty(cut))
+    }
+
+    @Test
+    fun aStoredPayloadIsHandedOverWithoutTheStoresMarker() {
+        assertEquals("{\"a\":1}", PayloadPreview.stored("{\"a\":1}"))
+        assertEquals("{\"a\":", PayloadPreview.stored("{\"a\":" + WebhookLogStore.TRUNCATION_MARKER))
     }
 }

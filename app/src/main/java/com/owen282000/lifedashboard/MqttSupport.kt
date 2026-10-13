@@ -34,6 +34,60 @@ object MqttSupport {
     const val DEVICE_ID = "life_dashboard_companion"
     const val DEVICE_NAME = "Life Dashboard Companion"
 
+    /** The highest TCP port. */
+    const val MAX_PORT = 65535
+
+    /** The port in [text], or null when it is not a whole number from 1 to [MAX_PORT]. */
+    fun portOrNull(text: String): Int? = text.trim().toIntOrNull()?.takeIf { it in 1..MAX_PORT }
+
+    /**
+     * Whether a broker [host] can be connected to as it is: a host name, an IPv4 address, or an
+     * IPv6 address with or without brackets. Surrounding spaces do not count, the settings trim
+     * them on save; a space inside does. Not a URL either: "mqtt://broker" and "broker:1883" are
+     * refused, since the port and TLS have fields of their own.
+     */
+    fun isValidHost(host: String): Boolean {
+        val name = host.trim()
+        if (name.isEmpty() || name.any { it.isWhitespace() }) return false
+        if (name.startsWith("[") || ':' in name) return isIpv6(name.removeSurrounding("[", "]"))
+        if (name.all { it in '0'..'9' || it == '.' }) return isIpv4(name)
+        return isHostName(name)
+    }
+
+    private fun isIpv4(text: String): Boolean {
+        val parts = text.split('.')
+        return parts.size == 4 && parts.all { part -> part.length in 1..3 && part.all { it in '0'..'9' } && part.toInt() <= 255 }
+    }
+
+    /** Letters, digits, hyphens and underscores (common in LAN names), in labels of at most 63. */
+    private fun isHostName(text: String): Boolean {
+        val name = text.removeSuffix(".")
+        if (name.isEmpty() || name.length > 253) return false
+        return name.split('.').all { label ->
+            label.length in 1..63 && !label.startsWith('-') && !label.endsWith('-') &&
+                label.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '-' || it == '_' }
+        }
+    }
+
+    /** Eight groups of up to four hex digits, "::" once for a run of zeros, an IPv4 tail and a zone allowed. */
+    private fun isIpv6(text: String): Boolean {
+        val address = text.substringBefore('%')
+        if ('%' in text) {
+            val zone = text.substringAfter('%')
+            if (zone.isEmpty() || !zone.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it in "._-" }) return false
+        }
+        val halves = address.split("::")
+        if (halves.size > 2) return false
+        val groups = halves.flatMap { half -> if (half.isEmpty()) emptyList() else half.split(':') }
+        // An IPv4 address may stand in for the last two groups, as in ::ffff:192.168.1.10.
+        val ipv4Tail = '.' in address.substringAfterLast(':')
+        if (ipv4Tail && !isIpv4(groups.last())) return false
+        val hexGroups = if (ipv4Tail) groups.dropLast(1) else groups
+        val hex = hexGroups.all { group -> group.length in 1..4 && group.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' } }
+        val count = hexGroups.size + if (ipv4Tail) 2 else 0
+        return hex && if (halves.size == 2) count <= 7 else count == 8
+    }
+
     /** Numeric states with a sensible number of decimals; raw doubles like 78.2006048685296 help nobody. */
     fun num(value: Double, decimals: Int = 1): String = String.format(java.util.Locale.ROOT, "%.${decimals}f", value)
 
@@ -301,11 +355,46 @@ object MqttSupport {
      * sync line, the dashboard and the failure streak say so, instead of a green sync that
      * delivered nothing. [publish] is null when nothing was published. [describe] turns the
      * publish's reason into the sync's, in the user's language (R.string.mqtt_sync_failed).
+     * The reason is the publisher's own (MqttPublishException); any other failure is put in
+     * plain words by [explain], so the sync line never shows an exception's class or message.
      */
-    fun syncFailure(hasWebhooks: Boolean, publish: Result<Int>?, describe: (reason: String) -> String): Exception? {
+    fun syncFailure(
+        hasWebhooks: Boolean,
+        publish: Result<Int>?,
+        explain: (ConnectionProblem) -> String,
+        describe: (reason: String) -> String
+    ): Exception? {
         if (hasWebhooks) return null
         val error = publish?.exceptionOrNull() ?: return null
-        return Exception(describe(error.message ?: error.javaClass.simpleName), error)
+        val reason = (error as? MqttPublishException)?.message ?: explain(ConnectionProblem.of(error))
+        return Exception(describe(reason), error)
+    }
+
+    /**
+     * The last publish of a section, read back from what MqttPublisher stores: "OK: 12 sensors
+     * published at <instant>" or "Error: <reason>". The stored text keeps that English frame, as
+     * it always had; the MQTT row says it in the user's language from these parts.
+     */
+    sealed interface PublishStatus {
+        data class Published(val sensors: Int, val at: Instant) : PublishStatus
+
+        /** [reason] is already in the user's language (see MqttPublishException). */
+        data class Failed(val reason: String) : PublishStatus
+    }
+
+    private val PUBLISHED_STATUS = Regex("""^OK: (\d+) sensors published at (\S+)$""")
+
+    fun publishStatus(stored: String): PublishStatus {
+        PUBLISHED_STATUS.find(stored.trim())?.let { match ->
+            val sensors = match.groupValues[1].toIntOrNull()
+            val at = try {
+                Instant.parse(match.groupValues[2])
+            } catch (e: java.time.format.DateTimeParseException) {
+                null
+            }
+            if (sensors != null && at != null) return PublishStatus.Published(sensors, at)
+        }
+        return PublishStatus.Failed(stored.trim().removePrefix("Error:").trim())
     }
 
     /**

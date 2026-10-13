@@ -122,7 +122,8 @@ Plain exports are readable JSON:
     "receive_enabled": true,
     "receive_types": ["weight", "blood_pressure"],
     "receive_older_measurements": false,
-    "receive_source_url": "https://ha.example.com/api/webhook/abc"
+    "receive_source_url": "https://ha.example.com/api/webhook/abc",
+    "theme": "system"
   }
 }
 ```
@@ -136,6 +137,12 @@ Each section's schedule is in five keys next to `sync_interval_minutes`. `sync_m
 `screen_time_app_filter` holds which apps Screen Time sends: `mode` is `ALL`, `BLOCKLIST` (every app but the listed ones) or `ALLOWLIST` (only the listed ones), and `packages` the list, which is kept with `ALL` too. A backup from before the filter existed has none, and importing it leaves the filter as it is. The package names are in the file in plain text, even in a backup without secrets: they say which apps you chose to leave out or to send.
 
 `receive_source_url` is only applied when it is one of the phone's health webhook URLs after the import: the file's own when it has `webhook_urls`, otherwise the ones already on the phone. Any other URL clears the source. A backup written before 1.20.0 has none of the `phone_name` and `receive_*` keys, and importing it leaves the phone name, the Receive switches and the ledger as they are.
+
+`theme` is the app's appearance: `system`, `light` or `dark`. The iOS app writes the same key, so the choice moves between the two apps. A backup written before 1.25.0 has none, and importing it, or a value this version does not know, leaves the phone's choice as it is.
+
+Headers are imported only when they can be sent: a name made of the characters HTTP allows in a header name, a value of printable ASCII without line breaks. Others are left out, and the import preview says so.
+
+A broker is imported only when the MQTT settings would take it: a host that is a host name, an IPv4 address or an IPv6 address (no spaces, no `mqtt://`, no port after it), or empty for no broker, and a `port` from 1 to 65535. A broker that fails either check does not refuse the file: the rest is imported, the phone keeps the broker it has (host, port, TLS and credentials, which belong to that broker), and the import preview says whether the host or the port was the problem. This applies to `shared`, `health_own_broker` and `screen_time_own_broker` each on its own.
 
 A key that is absent leaves its setting as it is on import, and so does a whole section: a file without `screen_time` keeps the Screen Time webhooks, and one without `mqtt` keeps every broker. Unknown keys are ignored on import, so a file from a newer version still restores what the installed build understands. Data types are stored by name, and names this build does not know are skipped rather than failing the import.
 

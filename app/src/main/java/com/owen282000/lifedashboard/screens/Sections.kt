@@ -1,7 +1,6 @@
 package com.owen282000.lifedashboard.screens
 
 import android.content.ClipData
-import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.Resources
@@ -10,6 +9,7 @@ import android.os.PersistableBundle
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -70,6 +70,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -90,6 +91,10 @@ import com.owen282000.lifedashboard.viewmodel.SettingsRules
 import com.owen282000.lifedashboard.viewmodel.UiMessage
 import com.owen282000.lifedashboard.viewmodel.WebhookDraft
 import java.text.NumberFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /*
  * The settings sections the Health Connect and Screen Time tabs share: webhook, MQTT,
@@ -107,6 +112,15 @@ fun UiMessage.text(res: Resources): String = when (this) {
     UiMessage.InvalidDayBoundaryHour -> res.getString(R.string.screentime_day_boundary_hour_invalid)
     UiMessage.InvalidUrl -> res.getString(R.string.webhook_enter_valid_url)
     UiMessage.HeaderNeedsNameAndValue -> res.getString(R.string.webhook_enter_header_name_and_value)
+    UiMessage.InvalidHeaderName -> res.getString(R.string.webhook_header_name_invalid)
+    UiMessage.InvalidHeaderValue -> res.getString(R.string.webhook_header_value_invalid)
+    is UiMessage.HeaderBlocksDelivery -> res.getString(
+        if (inValue) R.string.webhook_header_value_blocks_delivery else R.string.webhook_header_name_blocks_delivery,
+        name
+    )
+    UiMessage.MqttHostMissing -> res.getString(R.string.mqtt_host_missing)
+    UiMessage.MqttHostInvalid -> res.getString(R.string.mqtt_host_invalid)
+    UiMessage.MqttPortInvalid -> res.getString(R.string.mqtt_port_invalid)
     UiMessage.NoNewData -> res.getString(R.string.sync_no_new_data)
     is UiMessage.SyncedRecords -> res.getQuantityString(R.plurals.health_synced_records, count, count)
     is UiMessage.QueuedRecords -> res.getQuantityString(R.plurals.health_queued_records, count, count)
@@ -251,7 +265,7 @@ fun WebhookRow(
             Spacer(modifier = Modifier.width(8.dp))
             AddButton(accent) {
                 onAddHeader(newHeaderKey, newHeaderValue)
-                if (newHeaderKey.isNotBlank() && newHeaderValue.isNotBlank()) {
+                if (SettingsRules.headerProblem(newHeaderKey, newHeaderValue) == null) {
                     newHeaderKey = ""
                     newHeaderValue = ""
                 }
@@ -442,7 +456,9 @@ fun MqttRow(
             onValueChange = { onChange(mqtt.withActiveBroker(broker.copy(host = it))) },
             accent = accent,
             label = if (section.useSharedBroker) stringResource(R.string.mqtt_broker_host_shared) else stringResource(R.string.mqtt_broker_host),
-            placeholder = stringResource(R.string.mqtt_broker_host_placeholder)
+            placeholder = stringResource(R.string.mqtt_broker_host_placeholder),
+            // Live, so the reason Save refuses is at the field it is about.
+            error = SettingsRules.mqttHostProblem(mqtt)?.text(LocalResources.current)
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             FilledField(
@@ -451,7 +467,8 @@ fun MqttRow(
                 accent = accent,
                 label = stringResource(R.string.mqtt_port),
                 keyboardType = KeyboardType.Number,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                error = SettingsRules.mqttPortProblem(mqtt)?.text(LocalResources.current)
             )
             Spacer(modifier = Modifier.width(12.dp))
             val tlsInteraction = remember { MutableInteractionSource() }
@@ -492,11 +509,17 @@ fun MqttRow(
             accent = accent,
             label = stringResource(R.string.mqtt_base_topic)
         )
-        lastStatus?.let { status ->
+        lastStatus?.let { stored ->
+            // Stored with an English frame; said here in the user's language.
+            val status = remember(stored) { MqttSupport.publishStatus(stored) }
             Text(
-                status,
+                when (status) {
+                    is MqttSupport.PublishStatus.Published ->
+                        pluralStringResource(R.plurals.mqtt_status_published, status.sensors, status.sensors, formatPublishTime(status.at))
+                    is MqttSupport.PublishStatus.Failed -> status.reason
+                },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (status.startsWith("OK")) accent.ink() else MaterialTheme.colorScheme.error
+                color = if (status is MqttSupport.PublishStatus.Published) accent.ink() else MaterialTheme.colorScheme.error
             )
         }
     }
@@ -659,11 +682,22 @@ fun SaveBar(visible: Boolean, onSave: () -> Unit) {
     }
 }
 
+/** When the last MQTT publish went out, as the phone writes a short date and time. */
+private fun formatPublishTime(at: Instant): String =
+    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault()).format(at)
+
 /** [count] with the phone's digit grouping: 12,000 in English, 12.000 in Dutch and German. */
 internal fun formatCount(count: Int): String = NumberFormat.getIntegerInstance().format(count)
 
+/**
+ * What a sync would send, capped on screen (P2-11). Copy JSON and Share take the full [data]
+ * (S-01): Copy when it fits the clipboard, Share as a file through [onShare], the tab's own
+ * export, so a payload of any size leaves the app without going through an Intent extra.
+ */
 @Composable
-fun PreviewDialog(accent: Color, data: String, onDismiss: () -> Unit) {
+fun PreviewDialog(accent: Color, data: String, onDismiss: () -> Unit, onShare: () -> Unit) {
+    // Set when Copy JSON was refused; the note stays until the dialog closes.
+    var copyRefused by remember(data) { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.sync_data_preview_title)) },
@@ -700,11 +734,20 @@ fun PreviewDialog(accent: Color, data: String, onDismiss: () -> Unit) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         stringResource(R.string.payload_preview_shown_part, formatCount(PayloadPreview.MAX_CHARS), formatCount(shown.totalLength)) +
-                            " " + stringResource(R.string.sync_preview_full_in_export),
+                            " " + stringResource(fullPayloadHint(data)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                CopyRefusedNote(copyRefused)
+            }
+        },
+        // Close stays the confirm button; Copy JSON and Share sit before it, and the dialog puts
+        // Close on a line of its own when a language makes the three too wide.
+        dismissButton = {
+            Row {
+                CopyJsonButton(accent, data) { copyRefused = it }
+                SharePayloadButton(accent, onShare)
             }
         },
         confirmButton = {
@@ -712,6 +755,54 @@ fun PreviewDialog(accent: Color, data: String, onDismiss: () -> Unit) {
         }
     )
 }
+
+/**
+ * Copy JSON for a whole payload (S-01), in the data preview and in an opened log row: [data]
+ * goes on the clipboard flagged sensitive when it fits ([PayloadPreview.fitsClipboard]).
+ * [onResult] gets true when the copy was refused, for [CopyRefusedNote].
+ */
+@Composable
+internal fun CopyJsonButton(accent: Color, data: String, onResult: (refused: Boolean) -> Unit) {
+    val context = LocalContext.current
+    val copied = stringResource(R.string.payload_copied)
+    val label = stringResource(R.string.payload_copy_json_a11y)
+    TextButton(
+        onClick = { onResult(!PayloadPreview.fitsClipboard(data) || !copySensitive(context, "payload", data, copied)) },
+        modifier = Modifier.semantics { contentDescription = label }
+    ) { Text(stringResource(R.string.payload_copy_json), color = accent.ink()) }
+}
+
+/** Share for a whole payload: [onShare] hands it to the share sheet as a file, through the export path. */
+@Composable
+internal fun SharePayloadButton(accent: Color, onShare: () -> Unit) {
+    val label = stringResource(R.string.payload_share_a11y)
+    TextButton(
+        onClick = onShare,
+        modifier = Modifier.semantics { contentDescription = label }
+    ) { Text(stringResource(R.string.payload_share), color = accent.ink()) }
+}
+
+/** Says that Copy JSON was refused and Share is the way; read out by TalkBack when it appears. */
+@Composable
+internal fun CopyRefusedNote(visible: Boolean) {
+    Box(modifier = Modifier.announced()) {
+        if (visible) {
+            Text(
+                stringResource(R.string.payload_too_large_to_copy),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .announced()
+            )
+        }
+    }
+}
+
+/** Where the full payload is, under a preview cut for display: Copy JSON when it fits, Share always. */
+@StringRes
+internal fun fullPayloadHint(payload: String): Int =
+    if (PayloadPreview.fitsClipboard(payload)) R.string.sync_preview_full_in_copy_share else R.string.sync_preview_full_in_share
 
 @Composable
 fun ExportFormatDialog(accent: Color, description: String, onJson: () -> Unit, onCsv: () -> Unit, onDismiss: () -> Unit) {
@@ -730,19 +821,35 @@ fun exportFileName(prefix: String, extension: String): String {
     return "${prefix}_$timestamp.$extension"
 }
 
-/**
- * Puts a secret on the clipboard the way a secret should go there. From Android 13 the clip is
- * flagged sensitive, so the clipboard overlay shows dots instead of the value, and the system
- * shows its own "copied" confirmation, so a second one from the app would only stack on top.
- */
+/** Puts a secret on the clipboard the way a secret should go there; see [copySensitive]. */
 private fun copySecret(context: Context, secret: String, copiedMessage: String) {
+    copySensitive(context, "secret", secret, copiedMessage)
+}
+
+/**
+ * Android 13's ClipDescription.EXTRA_IS_SENSITIVE, spelled out: androidx has no compat
+ * constant, and Android's own guidance is to set this key on older versions too, where a
+ * keyboard's clipboard strip may honor it.
+ */
+private const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
+
+/**
+ * Puts a secret or health data on the clipboard. The clip is flagged sensitive, so from
+ * Android 13 the clipboard overlay shows dots instead of the text, and the system shows its
+ * own "copied" confirmation, so a second one from the app would only stack on top. False when
+ * the clipboard refused the clip, which one too large for the binder makes it do.
+ */
+private fun copySensitive(context: Context, label: String, text: String, copiedMessage: String): Boolean {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("secret", secret)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        clip.description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
+    val clip = ClipData.newPlainText(label, text)
+    clip.description.extras = PersistableBundle().apply { putBoolean(EXTRA_IS_SENSITIVE, true) }
+    try {
+        clipboard.setPrimaryClip(clip)
+    } catch (e: RuntimeException) {
+        return false
     }
-    clipboard.setPrimaryClip(clip)
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
         Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
     }
+    return true
 }

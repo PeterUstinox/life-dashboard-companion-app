@@ -17,6 +17,8 @@
     <string name="common_none_configured">None configured</string>
     <string name="common_permissions_required">Permissions required</string>
     <string name="common_remove">Remove</string>
+    <string name="common_show_password">Show password</string>
+    <string name="common_hide_password">Hide password</string>
     <string name="common_saved">Saved!</string>
 
     <!-- Shared webhook / sync settings, used by Health Connect and Screen Time -->
@@ -32,6 +34,10 @@
     <string name="webhook_enter_valid_url">Enter a valid URL</string>
     <string name="webhook_header_name">Header name</string>
     <string name="webhook_header_value">Header value</string>
+    <string name="webhook_header_name_invalid">A header name can only hold letters, digits and characters such as - and _, without spaces</string>
+    <string name="webhook_header_value_invalid">A header value can only hold plain ASCII characters, without line breaks or letters such as é</string>
+    <string name="webhook_header_name_blocks_delivery">Nothing was sent: header %1$s has a name that cannot be sent. Remove it under Webhook and add it again with a name without spaces.</string>
+    <string name="webhook_header_value_blocks_delivery">Nothing was sent: the value of header %1$s holds a line break or a character a header cannot carry. Remove it under Webhook and add it again.</string>
     <string name="webhook_headers_title">Webhook Headers</string>
     <string name="webhook_hmac_secret_description">When set, every POST gets an X-Signature header (sha256=&lt;hex&gt;) computed as HMAC-SHA256 over the body, so your server can verify the sender.</string>
     <string name="webhook_hmac_secret_title">HMAC signing secret (optional)</string>
@@ -144,7 +150,8 @@
     <string name="sync_preview_failed">Preview failed</string>
     <string name="sync_preview_failed_with_reason">Preview failed: %1$s</string>
     <string name="sync_preview_payload_description">This is the JSON payload that will be sent:</string>
-    <string name="sync_preview_full_in_export">Export gives the full payload.</string>
+    <string name="sync_preview_full_in_copy_share">Copy JSON or Share gives the full payload.</string>
+    <string name="sync_preview_full_in_share">Share gives the full payload.</string>
     <string name="sync_save_changes">Save Changes</string>
     <string name="sync_syncing">Syncing...</string>
 
@@ -276,7 +283,6 @@
 
     <!-- MQTT settings card -->
     <string name="mqtt_base_topic">Base topic</string>
-    <string name="mqtt_no_answer_within">No answer within %1$d s</string>
     <string name="mqtt_sync_failed">MQTT broker: %1$s</string>
     <string name="mqtt_broker_host">Broker host</string>
     <string name="mqtt_broker_host_placeholder">Broker host, e.g. 192.168.1.10</string>
@@ -287,7 +293,14 @@
     <string name="mqtt_enabled_own_broker">Enabled: %1$s (own broker)</string>
     <string name="mqtt_enabled_shared_broker">Enabled: %1$s (shared broker)</string>
     <string name="mqtt_password">Password (optional)</string>
+    <plurals name="mqtt_status_published">
+        <item quantity="one">%1$d sensor published at %2$s</item>
+        <item quantity="other">%1$d sensors published at %2$s</item>
+    </plurals>
     <string name="mqtt_port">Port</string>
+    <string name="mqtt_host_missing">Enter the host name or IP address of the broker</string>
+    <string name="mqtt_host_invalid">Enter only a host name or IP address, without spaces, mqtt:// or a port</string>
+    <string name="mqtt_port_invalid">Enter a port from 1 to 65535</string>
     <string name="mqtt_title">MQTT</string>
     <string name="mqtt_tls">TLS</string>
     <string name="mqtt_plaintext_public_host">Without TLS your data and broker password cross the internet unencrypted. Turn on TLS, usually on port 8883.</string>
@@ -295,6 +308,18 @@
     <string name="mqtt_use_shared_broker_off">This section connects to its own broker; %1$s keeps the shared one</string>
     <string name="mqtt_use_shared_broker_on">One connection for Health Connect and Screen Time; the fields below edit it for both</string>
     <string name="mqtt_username">Username (optional)</string>
+
+    <!-- Why a connection failed, for the MQTT status line and the sync line (ConnectionProblem) -->
+    <string name="connection_problem_host_not_found">Host not found. Check the host name and the phone\'s internet connection.</string>
+    <string name="connection_problem_unreachable">Host not reachable from this network. Check the address, and whether the phone needs Wi-Fi or a VPN to reach it.</string>
+    <string name="connection_problem_refused">Connection refused. Check the port and that the server is running.</string>
+    <string name="connection_problem_no_answer">No answer in time. Check the host, the port and the network.</string>
+    <string name="connection_problem_tls">Secure connection failed. Check the TLS setting, the port and the server\'s certificate.</string>
+    <string name="connection_problem_login_refused">Login refused. Check the user name and password.</string>
+    <string name="connection_problem_turned_down">The server turned the connection down. Its log says why.</string>
+    <string name="connection_problem_lost">Connection closed early. Check the port, the TLS setting and the network.</string>
+    <string name="connection_problem_other">Sending failed. The Logs tab has the details.</string>
+    <string name="webhook_sync_failed">Webhook: %1$s</string>
 
     <!-- Logs screen -->
     <string name="logs_clear_logs">Clear logs</string>
@@ -323,11 +348,17 @@
     <string name="logs_last_success">Last success: %1$s</string>
     <string name="logs_ok">OK</string>
     <string name="logs_payload">Payload</string>
-    <string name="logs_payload_full_in_export">Export logs as JSON for the full payload.</string>
     <string name="logs_payload_stored_part">Only part of this payload was stored. Switch on Keep full payloads to store whole payloads from the next sync on.</string>
     <!-- The payload preview in the Logs tab and the data preview dialog (P2-11) -->
     <string name="payload_preview_a11y">Payload, %1$s characters</string>
     <string name="payload_preview_shown_part">Showing the first %1$s of %2$s characters.</string>
+    <!-- Copy JSON and Share in the data preview dialog (S-01) -->
+    <string name="payload_copy_json">Copy JSON</string>
+    <string name="payload_copy_json_a11y">Copy JSON of the full payload</string>
+    <string name="payload_share">Share</string>
+    <string name="payload_share_a11y">Share the full payload as a file</string>
+    <string name="payload_copied">Full payload copied</string>
+    <string name="payload_too_large_to_copy">This payload is too large for the clipboard. Share gives you all of it as a file.</string>
     <string name="logs_record_count">%1$s: %2$d</string>
     <string name="logs_recent_failures">Recent failures:</string>
     <string name="logs_stat_records">Records</string>
@@ -441,6 +472,11 @@
     <string name="about_description">Sends your Health Connect and screen time data to Home Assistant through the Life Dashboard integration, to your own webhook backend or to an MQTT broker, and can bring measurements from your own Home Assistant back into Health Connect. No cloud in between.</string>
     <string name="about_privacy_title">Privacy &amp; Security</string>
     <string name="about_backup_title">Backup &amp; restore</string>
+    <string name="about_appearance_title">Appearance</string>
+    <string name="about_appearance_description">Follow the phone\'s dark theme, or keep this app light or dark whatever the phone does.</string>
+    <string name="about_theme_system">System</string>
+    <string name="about_theme_light">Light</string>
+    <string name="about_theme_dark">Dark</string>
     <string name="backup_intro">Settings are not part of Android\'s cloud backup, because the secrets they contain never leave this device. Export them here to move to a new phone.</string>
     <string name="backup_export">Export</string>
     <string name="backup_import">Import</string>
@@ -475,6 +511,9 @@
     <string name="backup_note_iphone_types_kept">The iPhone app has no bone mass, body water mass, basal metabolic rate or skin temperature, so those stay on or off as they are on this phone.</string>
     <string name="backup_note_iphone_topic_kept">The iPhone\'s MQTT topic lifedashboard-ios is not taken over. This phone keeps its own, so the two phones do not share sensors.</string>
     <string name="backup_note_iphone_name_kept">The iPhone\'s phone name is not taken over. This phone keeps its own.</string>
+    <string name="backup_note_unsendable_headers_skipped">Headers that cannot be sent, such as one with a space in its name, are left out. Add them again under Webhook.</string>
+    <string name="backup_note_broker_host_unusable">The MQTT broker in this file cannot be used: its host is not a host name or IP address, for example because it has a space, mqtt:// or a port in it. This phone keeps its own broker.</string>
+    <string name="backup_note_broker_port_unusable">The MQTT broker in this file cannot be used: its port is not a number from 1 to 65535. This phone keeps its own broker.</string>
     <string name="backup_keeps_credentials">This file has no credentials, so the ones already on this device are kept.</string>
     <string name="backup_history_unaffected">Sync history and logs are not affected.</string>
     <string name="backup_imported">Settings imported, reopen the app to see them</string>
@@ -489,6 +528,8 @@
     <string name="about_f_no_sharing">No third-party data sharing</string>
     <string name="about_f_on_device">Data stays on your device</string>
     <string name="about_f_control">Full control over sync settings</string>
+    <string name="about_website">Website</string>
+    <string name="about_website_sub">Setup guides and the other Life Dashboard parts</string>
     <string name="about_docs">Documentation</string>
     <string name="about_docs_sub">Setup, webhook schema, MQTT, data sources</string>
     <string name="about_whats_new">What\'s new</string>

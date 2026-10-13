@@ -85,19 +85,29 @@ data class ConfigBackup(
         enabledDataTypes = options.enabledDataTypes?.let {
             ConfigBackupManager.dataTypesOnImport(it, currentDataTypes, isFromIPhone).size
         },
-        brokers = listOfNotNull(mqtt.shared, mqtt.healthOwnBroker, mqtt.screenTimeOwnBroker).count { it.host.isNotBlank() },
+        brokers = listOfNotNull(mqtt.shared, mqtt.healthOwnBroker, mqtt.screenTimeOwnBroker)
+            .count { it.host.isNotBlank() && it.problem() == null },
         includesSecrets = containsSecrets()
     )
 
     /**
-     * This file as it applies to this phone. A file from the iPhone app names the iPhone: its
-     * phone name, and its default base topic, would put this phone's sensors on the iPhone's
-     * in Home Assistant, so both are dropped and this phone keeps its own. The iPhone app does
-     * the same with a file from here; a topic the user chose is taken as it is, as there.
+     * This file as it applies to this phone. A header that cannot be sent (WebhookSupport.headerProblem)
+     * is left out: taken over, it would fail every delivery of its section. So is a broker whose
+     * host or port the MQTT settings would refuse ([BrokerConfig.problem]): the phone keeps the
+     * broker it has, credentials included, since those belong to that broker, and the rest of
+     * the file is imported. A file from the iPhone app names the iPhone: its phone name, and
+     * its default base topic, would put this phone's sensors on the iPhone's in Home Assistant,
+     * so both are dropped and this phone keeps its own. The iPhone app does the same with a file
+     * from here; a topic the user chose is taken as it is, as there.
      */
     fun forThisPhone(): ConfigBackup {
-        if (!isFromIPhone) return this
-        return copy(
+        val sendable = if (hasUnsendableHeaders()) {
+            copy(health = health.withSendableHeaders(), screenTime = screenTime.withSendableHeaders())
+        } else {
+            this
+        }.let { if (brokerProblems().isEmpty()) it else it.copy(mqtt = mqtt.withUsableBrokers()) }
+        if (!isFromIPhone) return sendable
+        return sendable.copy(
             mqtt = if (hasIPhoneBaseTopic()) mqtt.copy(healthBaseTopic = null) else mqtt,
             options = options.copy(phoneName = null)
         )
@@ -109,9 +119,19 @@ data class ConfigBackup(
         if (isFromIPhone && options.enabledDataTypes != null) add(ImportNote.IPHONE_ANDROID_TYPES_KEPT)
         if (isFromIPhone && hasIPhoneBaseTopic()) add(ImportNote.IPHONE_BASE_TOPIC_KEPT)
         if (isFromIPhone && !options.phoneName.isNullOrBlank()) add(ImportNote.IPHONE_PHONE_NAME_KEPT)
+        if (hasUnsendableHeaders()) add(ImportNote.UNSENDABLE_HEADERS_SKIPPED)
+        val brokerProblems = brokerProblems()
+        if (BrokerProblem.HOST in brokerProblems) add(ImportNote.BROKER_HOST_UNUSABLE)
+        if (BrokerProblem.PORT in brokerProblems) add(ImportNote.BROKER_PORT_UNUSABLE)
     }
 
+    private fun brokerProblems(): Set<BrokerProblem> =
+        listOfNotNull(mqtt.shared, mqtt.healthOwnBroker, mqtt.screenTimeOwnBroker).mapNotNull { it.problem() }.toSet()
+
     private fun hasIPhoneBaseTopic() = mqtt.healthBaseTopic?.trim() == IOS_DEFAULT_BASE_TOPIC
+
+    private fun hasUnsendableHeaders() =
+        WebhookSupport.headerProblem(health.headers) != null || WebhookSupport.headerProblem(screenTime.headers) != null
 }
 
 /** The counts the import preview lists. Null where the file has none and the device keeps its own. */
@@ -135,8 +155,20 @@ enum class ImportNote {
     IPHONE_BASE_TOPIC_KEPT,
 
     /** The iPhone's name names the iPhone, so this phone keeps its own. */
-    IPHONE_PHONE_NAME_KEPT
+    IPHONE_PHONE_NAME_KEPT,
+
+    /** A header that cannot be sent, such as a name with a space, is left out. */
+    UNSENDABLE_HEADERS_SKIPPED,
+
+    /** A broker host that is no host name or IP address: the phone keeps its own broker. */
+    BROKER_HOST_UNUSABLE,
+
+    /** A broker port outside 1 to 65535: the phone keeps its own broker. */
+    BROKER_PORT_UNUSABLE
 }
+
+/** Why a broker in a file cannot be used, by the rules of the MQTT settings. */
+enum class BrokerProblem { HOST, PORT }
 
 /** Webhook configuration of one section (Health Connect or Screen Time). */
 @Serializable
@@ -165,6 +197,9 @@ data class SectionConfig(
     fun containsSecrets(): Boolean = !signingSecret.isNullOrBlank() || headers.isNotEmpty()
 
     fun withoutSecrets(): SectionConfig = copy(headers = emptyMap(), signingSecret = null)
+
+    /** Without the headers that cannot be sent; with none left, the device keeps its own, as for a file without headers. */
+    fun withSendableHeaders(): SectionConfig = copy(headers = WebhookSupport.sendableHeaders(headers))
 
     /**
      * Which of this backup's URLs get no custom headers once it is imported. Headers in the
@@ -197,6 +232,16 @@ data class BrokerConfig(
     fun containsSecrets(): Boolean = !username.isNullOrBlank() || !password.isNullOrBlank()
 
     fun withoutSecrets(): BrokerConfig = copy(username = null, password = null)
+
+    /**
+     * Why the MQTT settings would refuse this broker, or null when they would take it. An empty
+     * host is no broker, which they take while MQTT is off; the port is checked either way.
+     */
+    fun problem(): BrokerProblem? = when {
+        host.isNotBlank() && !MqttSupport.isValidHost(host) -> BrokerProblem.HOST
+        port !in 1..MqttSupport.MAX_PORT -> BrokerProblem.PORT
+        else -> null
+    }
 
     fun toBroker(): MqttBroker = MqttBroker(
         host = host,
@@ -257,6 +302,13 @@ data class MqttConfig(
         shared = shared?.withoutSecrets(),
         healthOwnBroker = healthOwnBroker?.withoutSecrets(),
         screenTimeOwnBroker = screenTimeOwnBroker?.withoutSecrets()
+    )
+
+    /** Without the brokers that cannot be used ([BrokerConfig.problem]): absent, the phone keeps its own. */
+    fun withUsableBrokers(): MqttConfig = copy(
+        shared = shared?.takeIf { it.problem() == null },
+        healthOwnBroker = healthOwnBroker?.takeIf { it.problem() == null },
+        screenTimeOwnBroker = screenTimeOwnBroker?.takeIf { it.problem() == null }
     )
 
     /**
@@ -324,5 +376,13 @@ data class OptionsConfig(
     @SerialName("receive_types") val receiveTypes: List<String>? = null,
     @SerialName("receive_older_measurements") val receiveOlderMeasurements: Boolean? = null,
     /** An export writes an empty string when no source is chosen; absent means an older backup. */
-    @SerialName("receive_source_url") val receiveSourceUrl: String? = null
-)
+    @SerialName("receive_source_url") val receiveSourceUrl: String? = null,
+    /**
+     * Light, dark or the phone's choice for the whole app (S-02): a [ThemeMode] key. Absent in
+     * an older backup and in the iPhone's, and then left alone on import, like the phone name.
+     */
+    @SerialName("theme") val theme: String? = null
+) {
+    /** The theme an import sets; null leaves the phone's own, also for a key this build does not know. */
+    fun themeOnImport(): ThemeMode? = ThemeMode.fromKey(theme)
+}
