@@ -132,7 +132,6 @@
     <string name="outbox_replaced_log">In de wachtrij vervangen door een nieuwere snapshot, die de oudste niet-afgeleverde dagen niet meer bevat, dus die zijn verloren</string>
     <string name="sync_advanced_title">Geavanceerd</string>
     <string name="sync_data_preview_title">Voorbeeld van data</string>
-    <string name="sync_export_data">Data exporteren</string>
     <string name="sync_export_failed">Export mislukt</string>
     <string name="sync_export_failed_with_reason">Export mislukt: %1$s</string>
     <string name="sync_failed_with_reason">Mislukt: %1$s</string>
@@ -234,7 +233,6 @@
     <string name="health_daily_totals_description">Ontdubbelde totalen per dag (stappen, afstand, calorieën) via de aggregate-API; voegt data van telefoon en horloge samen</string>
     <string name="health_daily_totals_title">Dagtotalen in payload</string>
     <string name="health_error_with_reason">Fout: %1$s</string>
-    <string name="health_export_dialog_description">Exporteer de huidige gezondheidsdata als JSON of CSV.</string>
     <string name="health_install">Installeren</string>
     <string name="health_no_daily_totals">Geen dagtotalen</string>
     <string name="health_notifications_after_failures">Na opeenvolgende mislukkingen</string>
@@ -391,7 +389,6 @@
     <string name="screentime_day_boundary_enabled">Ingeschakeld · %1$s</string>
     <string name="screentime_day_boundary_hour_invalid">Uur moet 0-23 zijn</string>
     <string name="screentime_day_boundary_title">Daggrens</string>
-    <string name="screentime_export_dialog_description">Exporteer de huidige schermtijddata als JSON of CSV.</string>
     <string name="screentime_header">Houd je app-gebruik bij</string>
     <string name="screentime_mqtt_description">Publiceert de schermtijd van vandaag en gisteren en de meest gebruikte app van vandaag naar je MQTT-broker met Home Assistant Discovery, onder hetzelfde apparaat als Health Connect.</string>
     <string name="screentime_permission_not_granted">Toestemming niet verleend</string>
@@ -551,7 +548,7 @@
     <string name="privacy_writes_title">Wat de app schrijft</string>
     <string name="privacy_writes_body">Niets, tenzij je Ontvangen aanzet. Dan schrijft de app de metingen die je eigen Home Assistant stuurt naar Health Connect: gewicht, lengte, vetpercentage, vetvrije massa, botmassa, lichaamswater en bloeddruk, elk met een eigen schakelaar en een eigen toestemming. De app kan alleen records wijzigen die hij zelf heeft geschreven.</string>
     <string name="privacy_where_title">Waar het heen gaat</string>
-    <string name="privacy_where_body">Alleen naar de bestemmingen die je zelf invult: je eigen webhook-URL\'s en je eigen MQTT-broker. De app neemt met geen enkele andere server contact op. Er zijn geen analytics, geen crashrapportagediensten en geen advertentie-SDK\'s. Naast de types die je aanzet, bevat elke payload de appversie, en een Schermtijd-payload ook het merk en model van de telefoon. MQTT is onversleuteld tenzij je TLS aanzet. Statussen worden retained gepubliceerd, dus de broker bewaart de laatste waarde van elke sensor, voor Schermtijd ook de meest gebruikte apps, ook nadat je MQTT in de app uitzet: wis de topics op de broker als je ermee stopt.</string>
+    <string name="privacy_where_body">Alleen naar de bestemmingen die je zelf invult: je eigen webhook-URL\'s en je eigen MQTT-broker. De app neemt met geen enkele andere server contact op. Er zijn geen analytics, geen crashrapportagediensten en geen advertentie-SDK\'s. Naast de types die je aanzet, bevat elke payload de appversie, en een Schermtijd-payload ook het merk en model van de telefoon. Elk Health Connect-record heeft zijn ID in Health Connect (uuid) en de pakketnaam van de app die het schreef (source), zodat je server ziet welke apps je gebruikt. Zet je Recordmetadata in payload aan (standaard uit), dan krijgt elk record ook mee wanneer het voor het laatst gewijzigd is, de eigen ID en versie die de schrijvende app eraan gaf, hoe het is vastgelegd, merk, model en type van het apparaat, en de tijdzone. MQTT is onversleuteld tenzij je TLS aanzet. Statussen worden retained gepubliceerd, dus de broker bewaart de laatste waarde van elke sensor, voor Schermtijd ook de meest gebruikte apps, ook nadat je MQTT in de app uitzet: wis de topics op de broker als je ermee stopt.</string>
     <string name="privacy_device_title">Wat op deze telefoon blijft</string>
     <string name="privacy_device_body">Je instellingen, met geheimen in versleutelde opslag die buiten de cloudback-up blijft. De sync-voortgang, zodat elk record één keer wordt verstuurd. Een log van de laatste 100 leveringen, dat je kunt wissen, en payloads die nog niet konden worden afgeleverd. Als je de app verwijdert, verdwijnt dit allemaal. Exports zijn bestanden die je zelf maakt: de app bewaart een kopie in zijn cache tot je volgende export, of tot hij een dag later start, en geeft die aan het deelmenu, waar de app die je kiest een eigen kopie houdt. Een instellingenexport zonder geheimen bevat nog steeds je webhook-URL\'s, die als wachtwoord kunnen werken, dus deel die met zorg.</string>
     <string name="privacy_control_title">Jij houdt de controle</string>

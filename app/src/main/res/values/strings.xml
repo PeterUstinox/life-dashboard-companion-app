@@ -134,7 +134,6 @@
     <string name="outbox_replaced_log">Replaced in the outbox by a newer snapshot, which no longer covers its oldest undelivered days, so those are lost</string>
     <string name="sync_advanced_title">Advanced</string>
     <string name="sync_data_preview_title">Data Preview</string>
-    <string name="sync_export_data">Export Data</string>
     <string name="sync_export_failed">Export failed</string>
     <string name="sync_export_failed_with_reason">Export failed: %1$s</string>
     <string name="sync_failed_with_reason">Failed: %1$s</string>
@@ -237,7 +236,6 @@
     <string name="health_daily_totals_description">Deduplicated per-day totals (steps, distance, calories) via the aggregate API; merges phone and watch data</string>
     <string name="health_daily_totals_title">Daily totals in payload</string>
     <string name="health_error_with_reason">Error: %1$s</string>
-    <string name="health_export_dialog_description">Export current health data as JSON or CSV.</string>
     <string name="health_install">Install</string>
     <string name="health_no_daily_totals">No daily totals</string>
     <string name="health_notifications_after_failures">After consecutive failures</string>
@@ -394,7 +392,6 @@
     <string name="screentime_day_boundary_enabled">Enabled · %1$s</string>
     <string name="screentime_day_boundary_hour_invalid">Hour must be 0-23</string>
     <string name="screentime_day_boundary_title">Day Boundary</string>
-    <string name="screentime_export_dialog_description">Export current screen time data as JSON or CSV.</string>
     <string name="screentime_header">Track your app usage</string>
     <string name="screentime_mqtt_description">Publishes today\'s and yesterday\'s screen time and today\'s most used app to your MQTT broker with Home Assistant Discovery, under the same device as Health Connect.</string>
     <string name="screentime_permission_not_granted">Permission not granted</string>
@@ -554,7 +551,7 @@
     <string name="privacy_writes_title">What the app writes</string>
     <string name="privacy_writes_body">Nothing, unless you switch on Receive. Then it writes the measurements your own Home Assistant sends into Health Connect: weight, height, body fat, lean body mass, bone mass, body water mass and blood pressure, each behind its own switch and its own permission. It can only change records it wrote itself.</string>
     <string name="privacy_where_title">Where it goes</string>
-    <string name="privacy_where_body">Only to the destinations you enter: your own webhook URLs and your own MQTT broker. The app contacts no other server. There are no analytics, no crash reporting services and no advertising SDKs. Besides the types you switch on, each payload carries the app version, and a Screen Time payload also the phone\'s manufacturer and model. MQTT is unencrypted unless you switch on TLS. States are published retained, so the broker keeps the latest value of each sensor, for Screen Time also the most used apps, even after you switch MQTT off in the app: clear the topics on the broker if you stop using it.</string>
+    <string name="privacy_where_body">Only to the destinations you enter: your own webhook URLs and your own MQTT broker. The app contacts no other server. There are no analytics, no crash reporting services and no advertising SDKs. Besides the types you switch on, each payload carries the app version, and a Screen Time payload also the phone\'s manufacturer and model. Every Health Connect record carries its ID in Health Connect (uuid) and the package name of the app that wrote it (source), which tells your server which apps you use. With Record metadata in payload on (off by default), each record also carries when it was last changed, the writing app\'s own ID and version for it, how it was recorded, the device\'s manufacturer, model and type, and the time zone offset. MQTT is unencrypted unless you switch on TLS. States are published retained, so the broker keeps the latest value of each sensor, for Screen Time also the most used apps, even after you switch MQTT off in the app: clear the topics on the broker if you stop using it.</string>
     <string name="privacy_device_title">What stays on this phone</string>
     <string name="privacy_device_body">Your settings, with secrets in encrypted storage that is left out of cloud backup. Sync progress, so each record is sent once. A log of the last 100 deliveries, which you can clear, and payloads that could not be delivered yet. Uninstalling the app removes all of it. Exports are files you create yourself: the app keeps a copy in its cache until your next export, or until it starts a day later, and hands it to the share sheet, where the app you pick keeps its own copy. A settings export without secrets still contains your webhook URLs, which can work as a password, so share it with care.</string>
     <string name="privacy_control_title">Your control</string>

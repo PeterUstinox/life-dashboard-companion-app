@@ -4,6 +4,37 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Changed
+
+- A reading from Home Assistant may say `recording_method: automatic`, the word the app's own record
+  metadata uses, as well as `auto`; both mean recorded in the background. Before, `automatic` only got
+  there as an unknown value. What the app sends is unchanged.
+
+### Removed
+
+- The CSV choice in **Export** on the Health and Screen Time tabs. It shared the same JSON under a `.csv`
+  name; Export now goes straight to the share sheet with the JSON file. **Export logs** in the Logs tab
+  still writes real CSV.
+
+### Fixed
+
+- On Android 9 to 13, a phone without Health Connect now reads **Health Connect is not installed** with
+  an **Install** button, instead of **Health Connect needs to be updated** with **Update**; an old
+  Health Connect still asks for the update. On Android 8, and in a work profile on Android 14 and
+  newer, the card says Health Connect is not available, without an Install button that could not help
+  there.
+- **Sync Now** on the Screen Time tab saves the tab's changes first, as it does on the Health tab, so a
+  sync no longer goes out with the settings saved before. A change that can't be saved is named and
+  stops the sync.
+- **View** and **Export** on the Health tab no longer save the Data Types on screen behind **Save
+  Changes**. They show and export what those types would send at the Data Resolution on screen, which
+  they used to take from the saved settings, and a scheduled sync keeps the saved settings until you
+  save.
+- With **Record metadata in payload** on, nutrition records carry their `metadata` too, like every other
+  record type. They went out without it.
+- The privacy summary under About names everything a payload carries, as PRIVACY.md does: each record's
+  `uuid` and `source`, and the optional record metadata, besides the app version and the phone model.
+
 ## [1.25.0] - 2026-10-14
 
 ### Highlights

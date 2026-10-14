@@ -1,5 +1,6 @@
 package com.owen282000.lifedashboard.screens
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -123,10 +124,15 @@ fun HealthConnectScreen(
             }
         },
         onInstallHealthConnect = {
-            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(HEALTH_CONNECT_STORE_URL)))
+            // A phone without the Play Store and without a browser has nothing to open the link.
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(HEALTH_CONNECT_STORE_URL)))
+            } catch (e: ActivityNotFoundException) {
+                Toast.makeText(context, resources.getString(R.string.health_could_not_open), Toast.LENGTH_SHORT).show()
+            }
         },
-        onShareExport = { json, extension, mime ->
-            ExportManager(context).shareFile(json, exportFileName("health_data", extension), mime)
+        onShareExport = { json ->
+            ExportManager(context).shareFile(json, exportFileName("health_data", "json"), "application/json")
         },
         onScanRequested = onScanRequested
     )
@@ -138,7 +144,7 @@ fun HealthConnectContent(
     actions: HealthActions,
     onOpenHealthConnect: () -> Unit,
     onInstallHealthConnect: () -> Unit,
-    onShareExport: (json: String, extension: String, mime: String) -> Unit,
+    onShareExport: (json: String) -> Unit,
     onScanRequested: () -> Unit = {}
 ) {
     val accent = HealthPrimary
@@ -174,8 +180,10 @@ fun HealthConnectContent(
             when {
                 state.availability == HcAvailability.NEEDS_UPDATE ->
                     BannerChip(stringResource(R.string.health_update), accent, filled = true, onClick = onInstallHealthConnect)
-                state.availability != HcAvailability.AVAILABLE ->
+                state.availability == HcAvailability.NOT_INSTALLED ->
                     BannerChip(stringResource(R.string.health_install), accent, filled = true, onClick = onInstallHealthConnect)
+                // Android 8 or a work profile: the Play Store cannot help there.
+                state.availability == HcAvailability.UNAVAILABLE -> Unit
                 state.hasPermissions == false ->
                     BannerChip(stringResource(R.string.common_grant), accent, filled = true, onClick = actions::requestAccess)
                 else ->
@@ -369,17 +377,15 @@ fun HealthConnectContent(
     }
 
     state.previewData?.let { data ->
-        PreviewDialog(accent, data, actions::dismissPreview, onShare = { onShareExport(data, "json", "application/json") })
+        PreviewDialog(accent, data, actions::dismissPreview, onShare = { onShareExport(data) })
     }
 
+    // Export has one format, so the payload goes to the share sheet as soon as it is read.
     state.exportJson?.let { json ->
-        ExportFormatDialog(
-            accent = accent,
-            description = stringResource(R.string.health_export_dialog_description),
-            onJson = { actions.dismissExport(); onShareExport(json, "json", "application/json") },
-            onCsv = { actions.dismissExport(); onShareExport(json, "csv", "text/csv") },
-            onDismiss = actions::dismissExport
-        )
+        LaunchedEffect(json) {
+            actions.dismissExport()
+            onShareExport(json)
+        }
     }
 
     state.permissionPrompt?.let { type ->

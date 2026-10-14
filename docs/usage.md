@@ -121,7 +121,7 @@ Most settings on a tab are a draft until you save them. As soon as you change on
 - On the **Health** tab: **Data Types**, **Data Resolution**, **Sync Schedule**, **Webhook** (including **Webhook Headers** and the signing secret) and **MQTT**.
 - On the **Screen Time** tab: **Sync Schedule**, **Webhook**, **MQTT**, **Day Boundary** and **Apps to send**.
 
-An unsaved change survives a look at the other tab, but it is lost when you close the app or Android ends it in the background. Scheduled syncs and **Backfill** always use the saved settings. One exception: **View** and **Export** on the **Health** tab store the **Data Types** shown on screen right away. On the **Health** tab, **Sync Now** saves your changes first. On the **Screen Time** tab it does not: it syncs with the settings you saved last, so tap **Save Changes** before **Sync Now** there. **Test ping** uses the address and secret on screen, saved or not.
+An unsaved change survives a look at the other tab, but it is lost when you close the app or Android ends it in the background. Scheduled syncs and **Backfill** always use the saved settings. **View** and **Export** on the **Health** tab use the **Data Types** and **Data Resolution** shown on screen, without saving them. **Sync Now** saves your changes first, on both tabs, and does not sync when they can't be saved. **Test ping** uses the address and secret on screen, saved or not.
 
 The rest takes effect the moment you change it: everything under **Advanced** and **Notifications**, and **Receive** on the **Health** tab.
 
@@ -133,7 +133,7 @@ The app reads nothing until you allow it. There are two permissions, one per tab
 
 Health Connect is Android's shared store for health data. Apps like Samsung Health and Garmin Connect write into it, and this app reads from it.
 
-**Check that Health Connect is there.** On Android 9 through 13, if Health Connect is missing or out of date, the card at the top of the **Health** tab says **Health Connect needs to be updated** and shows an **Update** button that opens the Play Store. On Android 14 and newer you never see this, because Health Connect is part of Android's settings (search settings for "Health Connect"; on Samsung phones it's under **Security and privacy**). On Android 8, which Health Connect doesn't support, and in a work profile, the card says **Health Connect is not installed**; screen time still works there. Once access is granted, **Open App** on that card opens Health Connect.
+**Check that Health Connect is there.** On Android 9 through 13, if Health Connect is missing, the card at the top of the **Health** tab says **Health Connect is not installed** and shows an **Install** button that opens the Play Store; if it is out of date, the card says **Health Connect needs to be updated** and the button says **Update**. On Android 14 and newer you never see this, because Health Connect is part of Android's settings (search settings for "Health Connect"; on Samsung phones it's under **Security and privacy**). On Android 8, which Health Connect doesn't support, and in a work profile on Android 14 and newer, the card says **Health Connect is not available**, without a button; screen time still works there. Once access is granted, **Open App** on that card opens Health Connect.
 
 **Let your watch app write into it.** This is a setting in the other app, not in this one:
 
